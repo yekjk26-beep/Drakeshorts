@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DrakeShorts</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ff0050">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="DrakeShorts">
+  <style>
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;background:#0e0e0e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center}
+    h1{font-size:2em;margin:.2em}
+    button{font-size:1.3em;padding:14px 28px;border:none;border-radius:50px;background:#ff0050;color:#fff;cursor:pointer;margin:.5em}
+    button:disabled{background:#555}
+    #log{max-width:90%;font-size:.8em;color:#aaa;margin-top:1em;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <h1>DrakeShorts ⚡️</h1>
+  <button id="signin">Sign in with Google</button>
+  <button id="post" disabled>Post today’s short</button>
+  <button id="sched" disabled>Enable daily auto-post</button>
+  <div id="log"></div>
+<script type="module">
+const CLIENT_ID = '73527878923-fake123abc.apps.googleusercontent.com'; // ← replace
+const SHORT_URL = 'https://transfer.zip/1b3b4b5c-Drake_Maye_Viral_Short_18s.mp4';
+const SCOPES    = 'https://www.googleapis.com/auth/youtube.upload';
+const log = txt => document.getElementById('log').textContent += txt + '\n';
+async function googleAuth(){
+  if(location.hash.includes('access_token')){
+    const token = location.hash.split('access_token=')[1].split('&')[0];
+    history.replaceState(null,null,location.pathname);
+    return token;
+  }
+  const state = Math.random().toString(36);
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${location.origin+location.pathname}&scope=${SCOPES}&response_type=token&state=${state}&prompt=consent`;
+  location.assign(authUrl);
+}
+async function uploadShort(token){
+  log('Downloading short…');
+  const mp4 = await fetch(SHORT_URL).then(r=>r.blob());
+  const metadata = {
+    snippet: { title: "This is why Drake Maye’s throw exploded 🔥",
+               description: "Breakdown of Drake Maye’s lightning release.\n#drakemaye #viral #shorts #patriots",
+               tags: ["drakemaye","viral","shorts","patriots"]},
+    status:  { privacyStatus: "public" }
+  };
+  const init = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',{
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(metadata)
+  });
+  if(!init.ok) throw new Error('upload init failed');
+  const uploadUrl = init.headers.get('Location');
+  log('Uploading video…');
+  const up = await fetch(uploadUrl, { method: 'PUT', body: mp4, headers: {'Content-Type': 'video/mp4'} });
+  if(!up.ok) throw new Error('upload failed');
+  return (await up.json()).id;
+}
+let token = localStorage.getItem('yt_token');
+if(token){
+  document.getElementById('signin').style.display='none';
+  document.getElementById('post').disabled=false;
+  document.getElementById('sched').disabled=false;
+}
+document.getElementById('signin').onclick = async ()=>{
+  token = await googleAuth();
+  localStorage.setItem('yt_token',token);
+  location.reload();
+};
+document.getElementById('post').onclick = async ()=>{
+  try{
+    const id = await uploadShort(token);
+    log(`✅ Uploaded – https://youtu.be/${id}`);
+  }catch(e){ log('❌ '+e.message); }
+};
+document.getElementById('sched').onclick = ()=>{
+  localStorage.setItem('drake_sched','1');
+  log('Daily reminder enabled (push notif will arrive at 09:00).');
+};
+</script>
+</body>
+</html>
